@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Pênalti 3D — Teste</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#79cfff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+#game{display:block;width:100vw;height:100vh}
+#hud{position:fixed;left:0;right:0;top:max(12px,env(safe-area-inset-top));text-align:center;color:white;text-shadow:0 2px 5px #000;font-weight:800;pointer-events:none}
+#title{font-size:22px} #score{font-size:17px;margin-top:3px}
+#hint{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#0009;color:white;padding:9px 14px;border-radius:18px;font-size:14px;white-space:nowrap;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div id="title">PÊNALTI 3D</div><div id="score">Gols: 0 • Chutes: 0</div></div>
+<div id="hint">Toque dentro do gol para chutar</div>
+<script>
+(()=>{
+const c=document.getElementById('game'),x=c.getContext('2d'),score=document.getElementById('score'),hint=document.getElementById('hint');
+let W=0,H=0,dpr=1,goals=0,shots=0,ball={x:0,y:0,r:13},start={x:0,y:0},target=null,t0=0,dur=650,moving=false,keeper=0,keeperTarget=0;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;c.style.width=W+'px';c.style.height=H+'px';x.setTransform(dpr,0,0,dpr,0,0);resetBall()}
+function goalBox(){let gw=Math.min(W*.72,520),gh=Math.min(H*.24,210),gx=(W-gw)/2,gy=H*.19;return {gx,gy,gw,gh}}
+function resetBall(){start={x:W/2,y:H*.82};ball.x=start.x;ball.y=start.y;ball.r=Math.max(10,Math.min(16,W*.032));moving=false;target=null;keeper=0;keeperTarget=0}
+function field(){
+ let g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#72cfff');g.addColorStop(.43,'#9ee6ff');g.addColorStop(.431,'#218b42');g.addColorStop(1,'#075d2b');x.fillStyle=g;x.fillRect(0,0,W,H);
+ x.fillStyle='#15913e';x.beginPath();x.moveTo(W*.12,H*.44);x.lineTo(W*.88,H*.44);x.lineTo(W,H);x.lineTo(0,H);x.closePath();x.fill();
+ x.strokeStyle='#ffffffaa';x.lineWidth=2;x.beginPath();x.moveTo(W*.12,H*.44);x.lineTo(W*.88,H*.44);x.stroke();
+ x.beginPath();x.ellipse(W/2,H*.71,W*.24,H*.08,0,0,Math.PI*2);x.stroke();
+}
+function goal(){
+ const {gx,gy,gw,gh}=goalBox();
+ x.save();x.strokeStyle='#ffffff';x.lineWidth=7;x.lineJoin='round';x.strokeRect(gx,gy,gw,gh);
+ x.strokeStyle='#ffffff55';x.lineWidth=1;
+ for(let i=1;i<9;i++){let xx=gx+gw*i/9;x.beginPath();x.moveTo(xx,gy);x.lineTo(xx,gy+gh);x.stroke()}
+ for(let i=1;i<6;i++){let yy=gy+gh*i/6;x.beginPath();x.moveTo(gx,yy);x.lineTo(gx+gw,yy);x.stroke()}
+ x.restore();
+ // goalkeeper
+ let cx=W/2+keeper, cy=gy+gh*.68;
+ x.strokeStyle='#1a1a1a';x.lineWidth=8;x.lineCap='round';
+ x.beginPath();x.moveTo(cx,cy-34);x.lineTo(cx,cy+13);x.moveTo(cx,cy-20);x.lineTo(cx-34,cy-4);x.moveTo(cx,cy-20);x.lineTo(cx+34,cy-4);x.moveTo(cx,cy+10);x.lineTo(cx-23,cy+39);x.moveTo(cx,cy+10);x.lineTo(cx+23,cy+39);x.stroke();
+ x.fillStyle='#f0bd8b';x.beginPath();x.arc(cx,cy-49,14,0,Math.PI*2);x.fill();
+ x.fillStyle='#ff6b2c';x.fillRect(cx-13,cy-35,26,46);
+}
+function drawBall(){
+ x.save();x.translate(ball.x,ball.y);x.fillStyle='white';x.shadowColor='#0007';x.shadowBlur=8;x.beginPath();x.arc(0,0,ball.r,0,Math.PI*2);x.fill();x.shadowBlur=0;
+ x.fillStyle='#222';for(let i=0;i<5;i++){let a=i*Math.PI*2/5-Math.PI/2;x.beginPath();x.arc(Math.cos(a)*ball.r*.5,Math.sin(a)*ball.r*.5,ball.r*.18,0,Math.PI*2);x.fill()}x.restore()
+}
+function draw(t){
+ field();goal();
+ if(moving&&target){
+   let p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);
+   ball.x=start.x+(target.x-start.x)*e;ball.y=start.y+(target.y-start.y)*e-Math.sin(Math.PI*p)*H*.07;ball.r=Math.max(5,(Math.max(10,W*.032))*(1-.55*e));
+   keeper+=(keeperTarget-keeper)*.09;
+   if(p>=1){moving=false;let {gx,gy,gw,gh}=goalBox();let saved=Math.abs(target.x-(W/2+keeperTarget))<45;let inside=target.x>gx&&target.x<gx+gw&&target.y>gy&&target.y<gy+gh;if(inside&&!saved){goals++;hint.textContent='GOL! Toque para cobrar de novo'}else{hint.textContent=saved?'DEFENDEU! Tente de novo':'FORA! Tente de novo'}score.textContent=`Gols: ${goals} • Chutes: ${shots}`;setTimeout(()=>{resetBall();hint.textContent='Toque dentro do gol para chutar'},900)}
+ }
+ drawBall();requestAnimationFrame(draw)
+}
+function kick(px,py){
+ if(moving)return;let g=goalBox();shots++;target={x:Math.max(g.gx-35,Math.min(g.gx+g.gw+35,px)),y:Math.max(g.gy+20,Math.min(g.gy+g.gh+25,py))};keeperTarget=(Math.random()-.5)*g.gw*.62;t0=performance.now();moving=true;score.textContent=`Gols: ${goals} • Chutes: ${shots}`
+}
+c.addEventListener('pointerdown',e=>{e.preventDefault();kick(e.clientX,e.clientY)},{passive:false});
+c.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
+addEventListener('resize',resize);resize();requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
